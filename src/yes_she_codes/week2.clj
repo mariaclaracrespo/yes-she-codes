@@ -17,8 +17,15 @@
 (defn proximo-id [entidades]
   (if-not (empty? entidades)
     (inc (apply max (map :id entidades)))
-    1))
+    1)
 
+  #_(if (empty? entidades)
+    1
+    (inc (apply max (map :id entidades))))
+
+  #_(if (seq entidades)
+      (inc (apply max (map :id entidades)))
+      1))
 
 (defn insere-no-vetor
   [repositorio-compras record-compra-sem-id]
@@ -29,20 +36,29 @@
 
 (defn valida-compra
   [record-compra]
-  (cond (not (some? (re-matches #"\d{4}-(\d{2})-\d{2}" (:data record-compra))))
-            (throw (Exception. "Data fora do padrão yyyy-mm-dd"))
+  ;; prefer `(nil? ,,)` over `(not (some? ,,,))`
+  (cond (nil? (re-matches #"\d{4}-(\d{2})-\d{2}" (:data record-compra)))
+        (throw (Exception. "Data fora do padrão yyyy-mm-dd"))
+
         (<= (:valor record-compra) 0)
-            (throw (Exception. "Valor da compra não é positivo"))
+        ;; or (neg? (:valor record-compra))
+        (throw (Exception. "Valor da compra não é positivo"))
+
         (< (count (:estabelecimento record-compra)) 2)
-            (throw (Exception. "Nome do estabelecimento com menos de 2 caracteres"))
-        (not (some? (#{"Alimentação", "Automóvel", "Casa", "Educação", "Lazer", "Saúde"}
-                     (:categoria record-compra))))
-            (throw (Exception. "Categoria não se enquadra nas opções"))))
+        (throw (Exception. "Nome do estabelecimento com menos de 2 caracteres"))
+
+        (nil? (#{"Alimentação", "Automóvel", "Casa", "Educação", "Lazer", "Saúde"}
+               (:categoria record-compra)))
+
+        (throw (Exception. "Categoria não se enquadra nas opções"))))
 
 
 (defn insere!
   [atomo-repositorio record-compra-sem-id]
-  (if (= Compra (type record-compra-sem-id))
+  ;; - use `when` when there is no else
+  ;; - use `instance?` instead of `=` with `type`
+  (when (instance? Compra record-compra-sem-id)
+      #_(= Compra (type record-compra-sem-id))
     (valida-compra record-compra-sem-id))
   (swap! atomo-repositorio insere-no-vetor record-compra-sem-id))
 
@@ -51,15 +67,24 @@
   [atomo]
   (println "Lista no átomo:" @atomo))
 
-
 (defn pesquisar-por-id
   [id vetor]
-  (seq (filter #(->> %
-                     :id
-                     #{id}
-                     )
+  (seq (filter #(->> % :id #{id})
+               ;; `comp` composes two or more functions, evaluating the last function first
+               ;; (comp #{id} :id) ;; << alternative
                vetor)))
 
+(comment
+  (inc 0) ;; 1
+  (dec 0) ;; -1
+  ;; `juxt` juxtaposes the results of n functions to a single argument
+  (juxt inc dec) ;; function
+  ((juxt inc dec) 0) ;; [1 -1]
+
+  ;; `comp` composes two or more functions, evaluating the last function first
+  (comp inc dec) ;; function
+  ((comp inc dec) 0) ;; 0
+  )
 
 (defn pesquisar-por-id!
   [id atom]
